@@ -1,0 +1,1343 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>3D Print Cost Calculator — Bambu Studio Edition</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+:root {
+  --bg: #0f1117;
+  --bg2: #161821;
+  --bg3: #1e2030;
+  --bg4: #252840;
+  --border: rgba(255,255,255,0.08);
+  --border2: rgba(255,255,255,0.14);
+  --text: #e8eaf0;
+  --text2: #8b8fa8;
+  --text3: #555870;
+  --blue: #4a9eff;
+  --blue-dim: rgba(74,158,255,0.12);
+  --blue-border: rgba(74,158,255,0.3);
+  --green: #4ade80;
+  --green-dim: rgba(74,222,128,0.1);
+  --orange: #fb923c;
+  --orange-dim: rgba(251,146,60,0.1);
+  --red: #f87171;
+  --purple: #c084fc;
+  --teal: #2dd4bf;
+  --yellow: #facc15;
+  --radius: 10px;
+  --radius-sm: 6px;
+  --shadow: 0 2px 12px rgba(0,0,0,0.4);
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  min-height: 100vh;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+/* TOPBAR */
+.topbar {
+  background: var(--bg2);
+  border-bottom: 1px solid var(--border);
+  padding: 0 24px;
+  height: 56px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  position: sticky;
+  top: 0;
+  z-index: 100;
+}
+.topbar-logo {
+  width: 34px; height: 34px;
+  background: linear-gradient(135deg, #4a9eff, #2563eb);
+  border-radius: 8px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 16px; flex-shrink: 0;
+}
+.topbar-brand { font-size: 15px; font-weight: 600; color: var(--text); }
+.topbar-badge {
+  font-size: 10px; font-weight: 600; padding: 2px 8px;
+  background: var(--blue-dim); border: 1px solid var(--blue-border);
+  color: var(--blue); border-radius: 20px; letter-spacing: 0.5px;
+}
+.topbar-actions { margin-left: auto; display: flex; gap: 8px; }
+.btn {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 7px 14px; border-radius: var(--radius-sm);
+  font-size: 13px; font-weight: 500; cursor: pointer;
+  border: 1px solid var(--border2); background: var(--bg3);
+  color: var(--text); transition: all 0.15s; white-space: nowrap;
+}
+.btn:hover { background: var(--bg4); border-color: var(--border2); }
+.btn-blue { background: var(--blue); color: #fff; border-color: var(--blue); }
+.btn-blue:hover { background: #3a8ef0; }
+.btn-green { background: #16a34a; color: #fff; border-color: #16a34a; }
+.btn-green:hover { background: #15803d; }
+.btn-ghost { background: transparent; border-color: var(--border); color: var(--text2); }
+.btn-ghost:hover { background: var(--bg3); color: var(--text); }
+.btn .ico { font-size: 15px; }
+
+/* LAYOUT */
+.app-layout {
+  display: grid;
+  grid-template-columns: 420px 1fr;
+  min-height: calc(100vh - 56px);
+}
+.sidebar {
+  background: var(--bg2);
+  border-right: 1px solid var(--border);
+  overflow-y: auto;
+  max-height: calc(100vh - 56px);
+  position: sticky;
+  top: 56px;
+}
+.results-area {
+  overflow-y: auto;
+  padding: 0;
+  background: var(--bg);
+}
+
+/* SIDEBAR SECTIONS */
+.s-section {
+  border-bottom: 1px solid var(--border);
+}
+.s-section-header {
+  display: flex; align-items: center; gap: 10px;
+  padding: 14px 18px; cursor: pointer; user-select: none;
+}
+.s-section-header:hover { background: rgba(255,255,255,0.02); }
+.s-icon {
+  width: 30px; height: 30px; border-radius: 7px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 14px; flex-shrink: 0;
+}
+.s-title { font-size: 13px; font-weight: 600; flex: 1; }
+.s-chevron { color: var(--text3); font-size: 12px; transition: transform 0.2s; }
+.s-chevron.open { transform: rotate(180deg); }
+.s-body { padding: 4px 18px 16px; display: flex; flex-direction: column; gap: 10px; }
+.s-body.hidden { display: none; }
+
+/* FIELDS */
+.field { display: flex; flex-direction: column; gap: 5px; }
+.field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.field-row-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; }
+label {
+  font-size: 11px; font-weight: 600; color: var(--text2);
+  text-transform: uppercase; letter-spacing: 0.6px;
+  display: flex; align-items: center; gap: 5px;
+}
+.label-hint { font-size: 10px; color: var(--text3); font-weight: 400; text-transform: none; letter-spacing: 0; margin-left: auto; }
+input[type=text], input[type=number], select, textarea {
+  width: 100%;
+  background: var(--bg3);
+  border: 1px solid var(--border2);
+  border-radius: var(--radius-sm);
+  color: var(--text);
+  font-size: 13px;
+  padding: 8px 10px;
+  outline: none;
+  transition: border-color 0.15s, box-shadow 0.15s;
+  -webkit-appearance: none;
+}
+input[type=text]:focus, input[type=number]:focus, select:focus, textarea:focus {
+  border-color: var(--blue);
+  box-shadow: 0 0 0 3px rgba(74,158,255,0.12);
+}
+input[type=number]::-webkit-outer-spin-button,
+input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+select { appearance: none; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' fill='%238b8fa8' viewBox='0 0 16 16'%3E%3Cpath d='M7.247 11.14 2.451 5.658C1.885 5.013 2.345 4 3.204 4h9.592a1 1 0 0 1 .753 1.659l-4.796 5.48a1 1 0 0 1-1.506 0z'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: calc(100% - 10px) center; padding-right: 30px; }
+textarea { resize: vertical; min-height: 64px; line-height: 1.5; }
+.input-unit {
+  position: relative;
+}
+.input-unit input { padding-right: 44px; }
+.input-unit .unit {
+  position: absolute; right: 10px; top: 50%; transform: translateY(-50%);
+  font-size: 11px; font-weight: 600; color: var(--text3); pointer-events: none;
+}
+.input-prefix { position: relative; }
+.input-prefix input { padding-left: 36px; }
+.input-prefix .prefix {
+  position: absolute; left: 10px; top: 50%; transform: translateY(-50%);
+  font-size: 11px; font-weight: 600; color: var(--text3); pointer-events: none;
+}
+
+/* BAMBU HIGHLIGHT BOX */
+.bambu-box {
+  background: linear-gradient(135deg, rgba(74,158,255,0.06), rgba(74,158,255,0.02));
+  border: 1px solid var(--blue-border);
+  border-radius: var(--radius);
+  padding: 12px 14px;
+  margin-bottom: 4px;
+}
+.bambu-box-title {
+  font-size: 11px; font-weight: 700; color: var(--blue);
+  text-transform: uppercase; letter-spacing: 0.8px;
+  display: flex; align-items: center; gap: 6px; margin-bottom: 10px;
+}
+.bambu-toggle {
+  display: flex; align-items: center; gap: 8px;
+  padding: 8px 10px; border-radius: var(--radius-sm);
+  background: rgba(74,158,255,0.08); border: 1px solid var(--blue-border);
+  cursor: pointer; margin-top: 8px; font-size: 12px; color: var(--blue);
+  font-weight: 500; transition: background 0.15s;
+}
+.bambu-toggle:hover { background: rgba(74,158,255,0.14); }
+.bambu-toggle input[type=checkbox] { width: 16px; height: 16px; accent-color: var(--blue); cursor: pointer; }
+
+/* PRESET BAR */
+.preset-bar {
+  padding: 10px 18px;
+  border-bottom: 1px solid var(--border);
+  display: flex; gap: 6px; align-items: center; flex-wrap: wrap;
+}
+.preset-bar-label { font-size: 11px; color: var(--text3); }
+.preset-chip {
+  font-size: 11px; padding: 4px 10px; border-radius: 20px;
+  border: 1px solid var(--border2); background: var(--bg3);
+  color: var(--text2); cursor: pointer; transition: all 0.15s;
+}
+.preset-chip:hover { border-color: var(--blue); color: var(--blue); }
+
+/* RESULTS TABS */
+.results-tabs {
+  display: flex; border-bottom: 1px solid var(--border);
+  background: var(--bg2); padding: 0 20px; position: sticky; top: 56px; z-index: 10;
+}
+.r-tab {
+  padding: 14px 16px; font-size: 13px; font-weight: 500;
+  color: var(--text2); border-bottom: 2px solid transparent;
+  cursor: pointer; transition: all 0.15s; margin-bottom: -1px;
+}
+.r-tab:hover { color: var(--text); }
+.r-tab.active { color: var(--blue); border-bottom-color: var(--blue); }
+.r-pane { display: none; padding: 20px; }
+.r-pane.active { display: block; }
+
+/* METRIC CARDS */
+.metric-grid {
+  display: grid; grid-template-columns: 1fr 1fr;
+  gap: 12px; margin-bottom: 20px;
+}
+.metric-card {
+  background: var(--bg2); border: 1px solid var(--border);
+  border-radius: 12px; padding: 16px 18px;
+}
+.metric-card.primary {
+  background: linear-gradient(135deg, #1a3a6b, #1e2d5a);
+  border-color: rgba(74,158,255,0.3);
+}
+.metric-card.success {
+  background: linear-gradient(135deg, #14532d, #166534);
+  border-color: rgba(74,222,128,0.3);
+}
+.mc-label {
+  font-size: 11px; font-weight: 600; text-transform: uppercase;
+  letter-spacing: 0.6px; color: var(--text2); margin-bottom: 6px;
+  display: flex; align-items: center; gap: 6px;
+}
+.metric-card.primary .mc-label { color: rgba(74,158,255,0.8); }
+.metric-card.success .mc-label { color: rgba(74,222,128,0.7); }
+.mc-value {
+  font-size: 22px; font-weight: 700; color: var(--text);
+  letter-spacing: -0.5px;
+}
+.metric-card.primary .mc-value { color: #93c5fd; }
+.metric-card.success .mc-value { color: var(--green); }
+.mc-sub { font-size: 11px; color: var(--text3); margin-top: 4px; }
+.metric-card.primary .mc-sub { color: rgba(147,197,253,0.6); }
+.metric-card.success .mc-sub { color: rgba(74,222,128,0.5); }
+
+/* STAT ROW */
+.stat-row {
+  display: flex; gap: 12px; margin-bottom: 20px;
+}
+.stat-item {
+  flex: 1; background: var(--bg2); border: 1px solid var(--border);
+  border-radius: var(--radius); padding: 12px 14px;
+  display: flex; align-items: center; gap: 10px;
+}
+.stat-icon {
+  width: 32px; height: 32px; border-radius: 8px;
+  display: flex; align-items: center; justify-content: center; font-size: 16px;
+}
+.stat-val { font-size: 15px; font-weight: 600; color: var(--text); }
+.stat-lbl { font-size: 11px; color: var(--text2); }
+
+/* PANEL */
+.panel {
+  background: var(--bg2); border: 1px solid var(--border);
+  border-radius: 12px; margin-bottom: 16px;
+  overflow: hidden;
+}
+.panel-header {
+  padding: 12px 18px; border-bottom: 1px solid var(--border);
+  display: flex; align-items: center; gap: 8px;
+}
+.panel-title { font-size: 13px; font-weight: 600; color: var(--text); flex: 1; }
+.panel-body { padding: 16px 18px; }
+
+/* BREAKDOWN TABLE */
+.bd-table { width: 100%; border-collapse: collapse; }
+.bd-table th {
+  text-align: left; font-size: 11px; font-weight: 600;
+  text-transform: uppercase; letter-spacing: 0.5px; color: var(--text3);
+  padding: 0 0 10px; border-bottom: 1px solid var(--border);
+}
+.bd-table th:nth-child(2), .bd-table th:nth-child(3) { text-align: right; }
+.bd-table td { padding: 10px 0; border-bottom: 1px solid var(--border); vertical-align: middle; }
+.bd-table td:nth-child(2), .bd-table td:nth-child(3) { text-align: right; font-weight: 500; font-size: 13px; }
+.bd-table tr:last-child td { border-bottom: none; }
+.bd-table .total-row td { font-weight: 700; font-size: 14px; color: var(--text); padding-top: 14px; }
+.bd-item-name {
+  display: flex; align-items: center; gap: 10px; font-size: 13px;
+}
+.bd-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+.bd-bar-wrap { height: 3px; background: var(--bg4); border-radius: 2px; margin-top: 4px; }
+.bd-bar-fill { height: 3px; border-radius: 2px; }
+.bd-pct-badge {
+  font-size: 10px; padding: 2px 6px; border-radius: 3px;
+  font-weight: 600; background: var(--bg4); color: var(--text2);
+}
+
+/* CHART */
+.chart-container {
+  display: flex; gap: 20px; align-items: flex-start; flex-wrap: wrap;
+}
+.chart-canvas-wrap { position: relative; width: 200px; height: 200px; flex-shrink: 0; }
+.chart-legend { flex: 1; min-width: 150px; display: flex; flex-direction: column; gap: 8px; padding-top: 8px; }
+.legend-row {
+  display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--text2);
+}
+.legend-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+.legend-label { flex: 1; }
+.legend-pct { font-weight: 600; color: var(--text); font-size: 12px; }
+.legend-val { font-size: 11px; color: var(--text3); }
+
+/* QUOTATION */
+.quot-paper {
+  background: var(--bg2); border: 1px solid var(--border2);
+  border-radius: 12px; overflow: hidden;
+}
+.quot-header {
+  background: linear-gradient(135deg, #1a3a6b, #1e2d5a);
+  padding: 20px 24px; border-bottom: 1px solid rgba(74,158,255,0.2);
+}
+.quot-header-title { font-size: 18px; font-weight: 700; color: #93c5fd; margin-bottom: 2px; }
+.quot-header-sub { font-size: 12px; color: rgba(147,197,253,0.6); }
+.quot-body { padding: 20px 24px; }
+.quot-row {
+  display: flex; justify-content: space-between; align-items: flex-start;
+  padding: 9px 0; border-bottom: 1px solid var(--border);
+  font-size: 13px; gap: 16px;
+}
+.quot-row:last-of-type { border-bottom: none; }
+.quot-key { color: var(--text2); flex-shrink: 0; }
+.quot-val { font-weight: 500; text-align: right; }
+.quot-row.total { background: rgba(74,158,255,0.05); margin: 8px -4px; padding: 10px 4px; border-radius: 6px; border: none; }
+.quot-row.total .quot-key { color: var(--text); font-weight: 600; }
+.quot-row.total .quot-val { color: var(--blue); font-size: 15px; font-weight: 700; }
+.quot-divider { height: 1px; background: var(--border); margin: 12px 0; }
+.quot-note {
+  font-size: 11px; color: var(--text3); line-height: 1.6;
+  padding: 12px; background: var(--bg3); border-radius: var(--radius-sm);
+  margin-top: 14px;
+}
+
+/* EMPTY STATE */
+.empty-state {
+  text-align: center; padding: 60px 20px;
+}
+.empty-icon { font-size: 48px; margin-bottom: 14px; opacity: 0.3; }
+.empty-title { font-size: 15px; font-weight: 600; color: var(--text2); margin-bottom: 6px; }
+.empty-sub { font-size: 13px; color: var(--text3); }
+
+/* TOAST */
+.toast {
+  position: fixed; bottom: 24px; right: 24px;
+  background: var(--bg3); border: 1px solid var(--border2);
+  border-radius: var(--radius); padding: 12px 18px;
+  font-size: 13px; color: var(--text);
+  box-shadow: var(--shadow); z-index: 9999;
+  display: flex; align-items: center; gap: 8px;
+  transform: translateY(80px); opacity: 0;
+  transition: all 0.3s cubic-bezier(0.34,1.56,0.64,1);
+}
+.toast.show { transform: translateY(0); opacity: 1; }
+.toast-ico { font-size: 16px; }
+
+/* FORMULA BOX */
+.formula-grid { display: flex; flex-direction: column; gap: 8px; }
+.formula-item {
+  background: var(--bg3); border-radius: var(--radius-sm);
+  padding: 10px 12px; font-size: 12px; line-height: 1.6;
+  border-left: 3px solid var(--border2);
+}
+.formula-item b { color: var(--blue); font-weight: 600; }
+.formula-item code {
+  background: rgba(255,255,255,0.05); padding: 1px 5px;
+  border-radius: 3px; font-family: 'SF Mono', monospace; font-size: 11px;
+  color: var(--orange);
+}
+
+/* RESPONSIVE */
+@media (max-width: 900px) {
+  .app-layout { grid-template-columns: 1fr; }
+  .sidebar { max-height: none; position: static; border-right: none; border-bottom: 1px solid var(--border); }
+  .results-area { }
+  .topbar-badge { display: none; }
+  .metric-grid { grid-template-columns: 1fr 1fr; }
+}
+@media (max-width: 480px) {
+  .topbar { padding: 0 14px; }
+  .topbar-brand { font-size: 13px; }
+  .btn span { display: none; }
+  .r-pane { padding: 14px; }
+  .metric-grid { grid-template-columns: 1fr; }
+  .stat-row { flex-direction: column; }
+  .chart-container { flex-direction: column; align-items: center; }
+  .s-body { padding: 4px 14px 14px; }
+  .field-row { grid-template-columns: 1fr; }
+  .field-row-3 { grid-template-columns: 1fr; }
+}
+
+/* SCROLLBAR */
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--bg4); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--border2); }
+
+.divider-label {
+  display: flex; align-items: center; gap: 8px;
+  font-size: 10px; font-weight: 700; text-transform: uppercase;
+  letter-spacing: 0.8px; color: var(--text3); margin: 4px 0 8px;
+}
+.divider-label::before, .divider-label::after {
+  content: ''; flex: 1; height: 1px; background: var(--border);
+}
+</style>
+</head>
+<body>
+
+<!-- TOPBAR -->
+<header class="topbar">
+  <div class="topbar-logo">🖨️</div>
+  <div>
+    <div class="topbar-brand">3D Print Cost Calculator</div>
+  </div>
+  <div class="topbar-badge">BAMBU STUDIO EDITION</div>
+  <div class="topbar-actions">
+    <button class="btn btn-ghost" onclick="resetAll()" title="Reset semua">
+      <span class="ico">↺</span><span>Reset</span>
+    </button>
+    <button class="btn btn-ghost" onclick="copyQuotation()" title="Copy quotation">
+      <span class="ico">⎘</span><span>Copy</span>
+    </button>
+    <button class="btn btn-green" onclick="downloadHTML()" title="Download PDF">
+      <span class="ico">↓</span><span>Download</span>
+    </button>
+  </div>
+</header>
+
+<div class="app-layout">
+
+  <!-- SIDEBAR -->
+  <aside class="sidebar">
+
+    <!-- PRESET BAR -->
+    <div class="preset-bar">
+      <span class="preset-bar-label">Preset:</span>
+      <button class="preset-chip" onclick="savePreset()">💾 Simpan</button>
+      <button class="preset-chip" onclick="loadPreset()">📂 Muat</button>
+      <button class="preset-chip" onclick="loadPresetPLA()">PLA Bambu</button>
+      <button class="preset-chip" onclick="loadPresetPETG()">PETG</button>
+      <button class="preset-chip" onclick="loadPresetABS()">ABS/ASA</button>
+    </div>
+
+    <!-- SECTION 1: PROJECT INFO -->
+    <div class="s-section">
+      <div class="s-section-header" onclick="toggleSection('s1')">
+        <div class="s-icon" style="background:rgba(74,158,255,0.12)">📋</div>
+        <span class="s-title">Info Project</span>
+        <span class="s-chevron open" id="chev-s1">▾</span>
+      </div>
+      <div class="s-body" id="body-s1">
+        <div class="field">
+          <label>Nama project</label>
+          <input type="text" id="projectName" placeholder="cth. Custom Coin Set — 10 pcs" oninput="calc()">
+        </div>
+        <div class="field-row">
+          <div class="field">
+            <label>Nama customer</label>
+            <input type="text" id="customerName" placeholder="cth. Budi Santoso" oninput="calc()">
+          </div>
+          <div class="field">
+            <label>Jumlah item</label>
+            <div class="input-unit">
+              <input type="number" id="qty" value="1" min="1" oninput="calc()">
+              <span class="unit">pcs</span>
+            </div>
+          </div>
+        </div>
+        <div class="field">
+          <label>Catatan project</label>
+          <textarea id="notes" placeholder="cth. Warna merah, infill 15%, layer 0.2mm..." oninput="calc()"></textarea>
+        </div>
+      </div>
+    </div>
+
+    <!-- SECTION 2: BAMBU STUDIO DATA -->
+    <div class="s-section">
+      <div class="s-section-header" onclick="toggleSection('s2')">
+        <div class="s-icon" style="background:rgba(74,158,255,0.15)">🔵</div>
+        <span class="s-title" style="color:var(--blue)">Data dari Bambu Studio</span>
+        <span class="s-chevron open" id="chev-s2">▾</span>
+      </div>
+      <div class="s-body" id="body-s2">
+        <div class="bambu-box">
+          <div class="bambu-box-title">📊 Slicing Result Panel</div>
+          <div class="divider-label">Filament usage</div>
+          <div class="field-row">
+            <div class="field">
+              <label>Model <span class="label-hint">gram</span></label>
+              <div class="input-unit">
+                <input type="number" id="filModel" placeholder="2.13" min="0" step="0.01" oninput="autoTotalFilament()">
+                <span class="unit">g</span>
+              </div>
+            </div>
+            <div class="field">
+              <label>Flushed/purged <span class="label-hint">gram</span></label>
+              <div class="input-unit">
+                <input type="number" id="filPurge" placeholder="2.99" min="0" step="0.01" oninput="autoTotalFilament()">
+                <span class="unit">g</span>
+              </div>
+            </div>
+          </div>
+          <div class="field-row">
+            <div class="field">
+              <label>Tower <span class="label-hint">gram</span></label>
+              <div class="input-unit">
+                <input type="number" id="filTower" placeholder="0.51" min="0" step="0.01" oninput="autoTotalFilament()">
+                <span class="unit">g</span>
+              </div>
+            </div>
+            <div class="field">
+              <label>Total filament</label>
+              <div class="input-unit">
+                <input type="number" id="filTotal" placeholder="5.63" min="0" step="0.01" oninput="calc()" style="border-color:var(--blue-border)">
+                <span class="unit">g</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="divider-label" style="margin-top:12px">Estimasi biaya slicer</div>
+          <div class="field">
+            <label>Filament cost dari Bambu Studio <span class="label-hint">opsional</span></label>
+            <div class="input-prefix">
+              <input type="number" id="bambuCost" placeholder="0.49" min="0" step="0.01" oninput="calc()">
+              <span class="prefix">Rp</span>
+            </div>
+          </div>
+          <label class="bambu-toggle">
+            <input type="checkbox" id="useBambuCost" onchange="calc()">
+            Gunakan biaya filament dari Bambu Studio
+          </label>
+
+          <div class="divider-label" style="margin-top:14px">Waktu print</div>
+          <div class="field-row">
+            <div class="field">
+              <label>Prepare time</label>
+              <input type="text" id="timePrepare" placeholder="6m32s" oninput="parseAndCalc()">
+            </div>
+            <div class="field">
+              <label>Timelapse time</label>
+              <input type="text" id="timeTimelapse" placeholder="2m7s" oninput="parseAndCalc()">
+            </div>
+          </div>
+          <div class="field-row">
+            <div class="field">
+              <label>Model print time</label>
+              <input type="text" id="timeModel" placeholder="1h21m" oninput="parseAndCalc()">
+            </div>
+            <div class="field">
+              <label>Total print time</label>
+              <input type="text" id="timeTotal" placeholder="1h30m" oninput="parseAndCalc()" style="border-color:var(--blue-border)">
+            </div>
+          </div>
+          <div id="timeParsed" style="font-size:11px;color:var(--text3);margin-top:4px;padding:6px 8px;background:var(--bg4);border-radius:5px;display:none"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- SECTION 3: DEFAULT COSTS -->
+    <div class="s-section">
+      <div class="s-section-header" onclick="toggleSection('s3')">
+        <div class="s-icon" style="background:rgba(251,146,60,0.12)">⚙️</div>
+        <span class="s-title">Biaya Default</span>
+        <span class="s-chevron open" id="chev-s3">▾</span>
+      </div>
+      <div class="s-body" id="body-s3">
+        <div class="divider-label">Material & energi</div>
+        <div class="field-row">
+          <div class="field">
+            <label>Harga filament <span class="label-hint">per kg</span></label>
+            <div class="input-prefix">
+              <input type="number" id="filamentPriceKg" value="150000" min="0" oninput="calc()">
+              <span class="prefix">Rp</span>
+            </div>
+          </div>
+          <div class="field">
+            <label>Tarif listrik <span class="label-hint">per kWh</span></label>
+            <div class="input-prefix">
+              <input type="number" id="electricRate" value="1500" min="0" oninput="calc()">
+              <span class="prefix">Rp</span>
+            </div>
+          </div>
+        </div>
+        <div class="field">
+          <label>Daya printer</label>
+          <div class="input-unit">
+            <input type="number" id="printerWatt" value="200" min="0" oninput="calc()">
+            <span class="unit">watt</span>
+          </div>
+        </div>
+
+        <div class="divider-label" style="margin-top:4px">Biaya per jam</div>
+        <div class="field-row">
+          <div class="field">
+            <label>Depresiasi mesin</label>
+            <div class="input-prefix">
+              <input type="number" id="depreciationPerHr" value="5000" min="0" oninput="calc()">
+              <span class="prefix">Rp</span>
+            </div>
+          </div>
+          <div class="field">
+            <label>Maintenance</label>
+            <div class="input-prefix">
+              <input type="number" id="maintenancePerHr" value="2000" min="0" oninput="calc()">
+              <span class="prefix">Rp</span>
+            </div>
+          </div>
+        </div>
+        <div class="field-row">
+          <div class="field">
+            <label>Sewa ruangan</label>
+            <div class="input-prefix">
+              <input type="number" id="rentPerHr" value="1000" min="0" oninput="calc()">
+              <span class="prefix">Rp</span>
+            </div>
+          </div>
+          <div class="field">
+            <label>Operator</label>
+            <div class="input-prefix">
+              <input type="number" id="operatorPerHr" value="5000" min="0" oninput="calc()">
+              <span class="prefix">Rp</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="divider-label" style="margin-top:4px">Biaya per project</div>
+        <div class="field-row">
+          <div class="field">
+            <label>Packaging</label>
+            <div class="input-prefix">
+              <input type="number" id="packagingCost" value="5000" min="0" oninput="calc()">
+              <span class="prefix">Rp</span>
+            </div>
+          </div>
+          <div class="field">
+            <label>Finishing</label>
+            <div class="input-prefix">
+              <input type="number" id="finishingCost" value="0" min="0" oninput="calc()">
+              <span class="prefix">Rp</span>
+            </div>
+          </div>
+        </div>
+        <div class="field">
+          <label>Biaya lain-lain</label>
+          <div class="input-prefix">
+            <input type="number" id="miscCost" value="0" min="0" oninput="calc()">
+            <span class="prefix">Rp</span>
+          </div>
+        </div>
+
+        <div class="divider-label" style="margin-top:4px">Risiko & margin</div>
+        <div class="field-row">
+          <div class="field">
+            <label>Risiko gagal print</label>
+            <div class="input-unit">
+              <input type="number" id="riskPct" value="10" min="0" max="100" step="0.5" oninput="calc()">
+              <span class="unit">%</span>
+            </div>
+          </div>
+          <div class="field">
+            <label>Margin keuntungan</label>
+            <div class="input-unit">
+              <input type="number" id="marginPct" value="30" min="0" max="1000" step="1" oninput="calc()">
+              <span class="unit">%</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </aside>
+
+  <!-- RESULTS AREA -->
+  <main class="results-area">
+    <nav class="results-tabs">
+      <div class="r-tab active" onclick="switchTab('summary')">Ringkasan</div>
+      <div class="r-tab" onclick="switchTab('breakdown')">Breakdown</div>
+      <div class="r-tab" onclick="switchTab('chart')">Grafik</div>
+      <div class="r-tab" onclick="switchTab('quotation')">Quotation</div>
+      <div class="r-tab" onclick="switchTab('formula')">Rumus</div>
+    </nav>
+
+    <!-- TAB: SUMMARY -->
+    <div class="r-pane active" id="tab-summary">
+      <div id="summaryEmpty" class="empty-state" style="display:none">
+        <div class="empty-icon">🧮</div>
+        <div class="empty-title">Belum ada data untuk dihitung</div>
+        <div class="empty-sub">Isi data dari Bambu Studio dan biaya default untuk melihat estimasi.</div>
+      </div>
+      <div id="summaryContent">
+        <div class="metric-grid">
+          <div class="metric-card primary">
+            <div class="mc-label">💰 Total modal produksi</div>
+            <div class="mc-value" id="mc-modal">Rp 0</div>
+            <div class="mc-sub" id="mc-modal-sub">belum ada data</div>
+          </div>
+          <div class="metric-card success">
+            <div class="mc-label">🏷️ Harga jual disarankan</div>
+            <div class="mc-value" id="mc-jual">Rp 0</div>
+            <div class="mc-sub" id="mc-jual-sub">belum ada data</div>
+          </div>
+          <div class="metric-card">
+            <div class="mc-label">📦 Harga per item</div>
+            <div class="mc-value" id="mc-peritem">Rp 0</div>
+            <div class="mc-sub" id="mc-peritem-sub">dari 1 item</div>
+          </div>
+          <div class="metric-card">
+            <div class="mc-label">📈 Profit estimasi</div>
+            <div class="mc-value" id="mc-profit" style="color:var(--green)">Rp 0</div>
+            <div class="mc-sub" id="mc-profit-sub">margin 30%</div>
+          </div>
+        </div>
+        <div class="stat-row">
+          <div class="stat-item">
+            <div class="stat-icon" style="background:rgba(74,158,255,0.1)">🕐</div>
+            <div>
+              <div class="stat-val" id="st-time">—</div>
+              <div class="stat-lbl">Total waktu print</div>
+            </div>
+          </div>
+          <div class="stat-item">
+            <div class="stat-icon" style="background:rgba(74,222,128,0.1)">🧵</div>
+            <div>
+              <div class="stat-val" id="st-filament">—</div>
+              <div class="stat-lbl">Total filament</div>
+            </div>
+          </div>
+          <div class="stat-item">
+            <div class="stat-icon" style="background:rgba(251,146,60,0.1)">⚡</div>
+            <div>
+              <div class="stat-val" id="st-electric">—</div>
+              <div class="stat-lbl">Biaya listrik</div>
+            </div>
+          </div>
+        </div>
+        <div class="panel">
+          <div class="panel-header">
+            <span>📊</span>
+            <span class="panel-title">Input yang digunakan</span>
+          </div>
+          <div class="panel-body" id="inputSummary" style="font-size:12px;color:var(--text2);line-height:2"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- TAB: BREAKDOWN -->
+    <div class="r-pane" id="tab-breakdown">
+      <div class="panel">
+        <div class="panel-header">
+          <span>📋</span>
+          <span class="panel-title">Rincian komponen biaya</span>
+        </div>
+        <div class="panel-body">
+          <table class="bd-table">
+            <thead>
+              <tr>
+                <th>Komponen</th>
+                <th>Jumlah</th>
+                <th>%</th>
+              </tr>
+            </thead>
+            <tbody id="breakdownBody"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- TAB: CHART -->
+    <div class="r-pane" id="tab-chart">
+      <div class="panel">
+        <div class="panel-header">
+          <span>🍩</span>
+          <span class="panel-title">Distribusi komponen biaya</span>
+        </div>
+        <div class="panel-body">
+          <div class="chart-container">
+            <div class="chart-canvas-wrap">
+              <canvas id="pieChart"></canvas>
+            </div>
+            <div class="chart-legend" id="chartLegend"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- TAB: QUOTATION -->
+    <div class="r-pane" id="tab-quotation">
+      <div id="quotBox">
+        <div class="empty-state">
+          <div class="empty-icon">📄</div>
+          <div class="empty-title">Isi form untuk generate quotation</div>
+          <div class="empty-sub">Masukkan data dari Bambu Studio dan biaya default terlebih dahulu.</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- TAB: FORMULA -->
+    <div class="r-pane" id="tab-formula">
+      <div class="panel">
+        <div class="panel-header">
+          <span>🔢</span>
+          <span class="panel-title">Rumus perhitungan</span>
+        </div>
+        <div class="panel-body">
+          <div class="formula-grid">
+            <div class="formula-item"><b>Biaya filament</b><br><code>total_gram / 1000 × harga_per_kg</code></div>
+            <div class="formula-item"><b>Biaya listrik</b><br><code>(watt / 1000) × total_jam × tarif_kWh</code></div>
+            <div class="formula-item"><b>Depresiasi mesin</b><br><code>total_jam × depresiasi_per_jam</code></div>
+            <div class="formula-item"><b>Maintenance</b><br><code>total_jam × maintenance_per_jam</code></div>
+            <div class="formula-item"><b>Sewa ruangan</b><br><code>total_jam × sewa_per_jam</code></div>
+            <div class="formula-item"><b>Biaya operator</b><br><code>total_jam × operator_per_jam</code></div>
+            <div class="formula-item"><b>Subtotal biaya dasar</b><br><code>filament + listrik + depresiasi + maintenance + ruangan + operator + packaging + finishing + lain-lain</code></div>
+            <div class="formula-item"><b>Biaya risiko gagal print</b><br><code>subtotal × (% risiko / 100)</code></div>
+            <div class="formula-item"><b>Total modal produksi</b><br><code>subtotal + biaya_risiko</code></div>
+            <div class="formula-item"><b>Margin keuntungan</b><br><code>total_modal × (% margin / 100)</code></div>
+            <div class="formula-item"><b>Harga jual disarankan</b><br><code>total_modal + margin</code></div>
+            <div class="formula-item"><b>Harga per item</b><br><code>harga_jual / jumlah_item</code></div>
+          </div>
+          <div style="margin-top:16px">
+            <div class="panel-header" style="margin: 0 -18px; padding: 10px 18px; margin-bottom: 12px">
+              <span>⏱️</span><span class="panel-title">Format waktu yang didukung</span>
+            </div>
+            <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:8px">
+              <div style="background:var(--bg3);padding:8px 10px;border-radius:6px;font-size:12px;color:var(--text2)"><code style="color:var(--orange)">1h21m</code><br>1 jam 21 menit</div>
+              <div style="background:var(--bg3);padding:8px 10px;border-radius:6px;font-size:12px;color:var(--text2)"><code style="color:var(--orange)">1h30m20s</code><br>1j 30m 20d</div>
+              <div style="background:var(--bg3);padding:8px 10px;border-radius:6px;font-size:12px;color:var(--text2)"><code style="color:var(--orange)">6m32s</code><br>6 menit 32 detik</div>
+              <div style="background:var(--bg3);padding:8px 10px;border-radius:6px;font-size:12px;color:var(--text2)"><code style="color:var(--orange)">90m</code><br>90 menit</div>
+              <div style="background:var(--bg3);padding:8px 10px;border-radius:6px;font-size:12px;color:var(--text2)"><code style="color:var(--orange)">1.5h</code><br>1.5 jam</div>
+              <div style="background:var(--bg3);padding:8px 10px;border-radius:6px;font-size:12px;color:var(--text2)"><code style="color:var(--orange)">45</code><br>45 menit</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </main>
+</div>
+
+<div class="toast" id="toast">
+  <span class="toast-ico" id="toastIco">✓</span>
+  <span id="toastMsg">Berhasil!</span>
+</div>
+
+<script>
+// ─── STATE ───────────────────────────────────────────────────────────────────
+let pieChartInst = null;
+const sectionOpen = {s1:true, s2:true, s3:true};
+let lastResult = null;
+
+// ─── TIME PARSER ─────────────────────────────────────────────────────────────
+function parseTimeToHours(str) {
+  if (!str || str.trim() === '') return 0;
+  str = str.trim().toLowerCase();
+  // plain decimal hours: 1.5 or 1.5h
+  if (/^\d+(\.\d+)?h?$/.test(str) && !str.includes('m') && !str.includes('s')) {
+    return parseFloat(str);
+  }
+  let h = 0, m = 0, s = 0;
+  const hm = str.match(/(\d+)\s*h/); if (hm) h = parseInt(hm[1]);
+  const mm = str.match(/(\d+)\s*m/); if (mm) m = parseInt(mm[1]);
+  const sm = str.match(/(\d+)\s*s/); if (sm) s = parseInt(sm[1]);
+  // plain minutes fallback
+  if (!hm && !mm && !sm) {
+    const plain = parseFloat(str);
+    if (!isNaN(plain)) return plain / 60;
+  }
+  return h + m / 60 + s / 3600;
+}
+
+function fmtHours(h) {
+  if (h === 0) return '0m';
+  const hrs = Math.floor(h);
+  const mins = Math.floor((h - hrs) * 60);
+  const secs = Math.round(((h - hrs) * 60 - mins) * 60);
+  let out = '';
+  if (hrs > 0) out += hrs + 'j ';
+  if (mins > 0) out += mins + 'm ';
+  if (secs > 0 && hrs === 0) out += secs + 'd';
+  return out.trim();
+}
+
+function parseAndCalc() {
+  const fields = ['timePrepare','timeTimelapse','timeModel','timeTotal'];
+  let parts = [];
+  fields.forEach(id => {
+    const v = document.getElementById(id).value;
+    if (v.trim()) {
+      const h = parseTimeToHours(v);
+      const el = document.getElementById(id);
+      el.style.borderColor = h > 0 ? 'var(--blue-border)' : 'var(--red)';
+      parts.push(el.placeholder.replace('...','') + ': ' + fmtHours(h));
+    }
+  });
+  const parsed = document.getElementById('timeParsed');
+  if (parts.length > 0) {
+    parsed.style.display = 'block';
+    parsed.textContent = '⏱ ' + parts.join(' · ');
+  } else {
+    parsed.style.display = 'none';
+  }
+  calc();
+}
+
+function autoTotalFilament() {
+  const model = parseFloat(document.getElementById('filModel').value) || 0;
+  const purge = parseFloat(document.getElementById('filPurge').value) || 0;
+  const tower = parseFloat(document.getElementById('filTower').value) || 0;
+  const total = model + purge + tower;
+  if (total > 0) {
+    document.getElementById('filTotal').value = total.toFixed(2);
+  }
+  calc();
+}
+
+// ─── FORMAT ──────────────────────────────────────────────────────────────────
+function rp(n) {
+  return 'Rp ' + Math.round(n).toLocaleString('id-ID');
+}
+function g(id) {
+  return Math.max(0, parseFloat(document.getElementById(id).value) || 0);
+}
+
+// ─── MAIN CALCULATION ────────────────────────────────────────────────────────
+function calc() {
+  const qty = Math.max(1, g('qty'));
+  const filTotal = g('filTotal');
+  const filamentPriceKg = g('filamentPriceKg');
+  const bambuCost = g('bambuCost');
+  const useBambu = document.getElementById('useBambuCost').checked;
+
+  const timeTotal = parseTimeToHours(document.getElementById('timeTotal').value) ||
+    parseTimeToHours(document.getElementById('timeModel').value);
+  const timePrepare = parseTimeToHours(document.getElementById('timePrepare').value);
+  const timeTimelapse = parseTimeToHours(document.getElementById('timeTimelapse').value);
+  const effectiveHours = timeTotal || 0;
+
+  const printerWatt = g('printerWatt');
+  const electricRate = g('electricRate');
+  const depreciationPerHr = g('depreciationPerHr');
+  const maintenancePerHr = g('maintenancePerHr');
+  const rentPerHr = g('rentPerHr');
+  const operatorPerHr = g('operatorPerHr');
+  const packagingCost = g('packagingCost');
+  const finishingCost = g('finishingCost');
+  const miscCost = g('miscCost');
+  const riskPct = g('riskPct');
+  const marginPct = g('marginPct');
+
+  // Biaya filament
+  let cFilament = (filTotal / 1000) * filamentPriceKg;
+  if (useBambu && bambuCost > 0) cFilament = bambuCost;
+
+  // Biaya per jam
+  const cElectric    = (printerWatt / 1000) * effectiveHours * electricRate;
+  const cDeprec      = effectiveHours * depreciationPerHr;
+  const cMaint       = effectiveHours * maintenancePerHr;
+  const cRent        = effectiveHours * rentPerHr;
+  const cOperator    = effectiveHours * operatorPerHr;
+  const cPackaging   = packagingCost;
+  const cFinishing   = finishingCost;
+  const cMisc        = miscCost;
+
+  const subtotal = cFilament + cElectric + cDeprec + cMaint + cRent + cOperator + cPackaging + cFinishing + cMisc;
+  const cRisk = subtotal * (riskPct / 100);
+  const totalModal = subtotal + cRisk;
+  const margin = totalModal * (marginPct / 100);
+  const hargaJual = totalModal + margin;
+  const hargaPerItem = hargaJual / qty;
+  const profit = hargaJual - totalModal;
+  const costPerItem = totalModal / qty;
+
+  lastResult = {
+    qty, filTotal, effectiveHours, timePrepare, timeTimelapse,
+    cFilament, cElectric, cDeprec, cMaint, cRent, cOperator,
+    cPackaging, cFinishing, cMisc, subtotal, cRisk,
+    totalModal, margin, hargaJual, hargaPerItem, costPerItem, profit,
+    riskPct, marginPct, useBambu, bambuCost,
+    filamentPriceKg, printerWatt, electricRate,
+    projectName: document.getElementById('projectName').value,
+    customerName: document.getElementById('customerName').value,
+    notes: document.getElementById('notes').value
+  };
+
+  updateSummary();
+  updateBreakdown();
+  updateChart();
+  updateQuotation();
+}
+
+// ─── UPDATE SUMMARY ───────────────────────────────────────────────────────────
+function updateSummary() {
+  const r = lastResult;
+  document.getElementById('mc-modal').textContent = rp(r.totalModal);
+  document.getElementById('mc-jual').textContent = rp(r.hargaJual);
+  document.getElementById('mc-peritem').textContent = rp(r.hargaPerItem);
+  document.getElementById('mc-profit').textContent = rp(r.profit);
+  document.getElementById('mc-modal-sub').textContent = 'biaya per item: ' + rp(r.costPerItem);
+  document.getElementById('mc-jual-sub').textContent = 'margin ' + r.marginPct + '% sudah termasuk';
+  document.getElementById('mc-peritem-sub').textContent = 'dari ' + r.qty + ' item';
+  document.getElementById('mc-profit-sub').textContent = 'margin ' + r.marginPct + '%';
+  document.getElementById('st-time').textContent = r.effectiveHours > 0 ? fmtHours(r.effectiveHours) : '—';
+  document.getElementById('st-filament').textContent = r.filTotal > 0 ? r.filTotal.toFixed(2) + ' g' : '—';
+  document.getElementById('st-electric').textContent = r.cElectric > 0 ? rp(r.cElectric) : '—';
+
+  const inputSummary = document.getElementById('inputSummary');
+  const rows = [
+    ['Filament', r.filTotal + ' g → ' + rp(r.cFilament) + (r.useBambu ? ' (dari Bambu Studio)' : '')],
+    ['Total waktu print', fmtHours(r.effectiveHours)],
+    ['Harga filament', rp(r.filamentPriceKg) + '/kg'],
+    ['Daya printer', r.printerWatt + 'W'],
+    ['Tarif listrik', rp(r.electricRate) + '/kWh'],
+  ];
+  inputSummary.innerHTML = rows.map(([k,v]) => `<span style="color:var(--text3)">${k}:</span> <b style="color:var(--text)">${v}</b>&emsp;`).join('');
+}
+
+// ─── BREAKDOWN ────────────────────────────────────────────────────────────────
+const COMPONENTS = [
+  { key:'cFilament',  label:'Filament',          color:'#4a9eff', icon:'🧵' },
+  { key:'cElectric',  label:'Listrik',            color:'#facc15', icon:'⚡' },
+  { key:'cDeprec',    label:'Depresiasi mesin',   color:'#c084fc', icon:'🖨️' },
+  { key:'cMaint',     label:'Maintenance',        color:'#2dd4bf', icon:'🔧' },
+  { key:'cRent',      label:'Sewa ruangan',       color:'#fb923c', icon:'🏢' },
+  { key:'cOperator',  label:'Operator',           color:'#4ade80', icon:'👤' },
+  { key:'cPackaging', label:'Packaging',          color:'#a78bfa', icon:'📦' },
+  { key:'cFinishing', label:'Finishing',          color:'#f472b6', icon:'✨' },
+  { key:'cMisc',      label:'Lain-lain',          color:'#94a3b8', icon:'📌' },
+  { key:'cRisk',      label:'Risiko gagal print', color:'#f87171', icon:'⚠️' },
+];
+
+function updateBreakdown() {
+  const r = lastResult;
+  const tbody = document.getElementById('breakdownBody');
+  tbody.innerHTML = '';
+  const total = r.totalModal || 1;
+  const nonZero = COMPONENTS.filter(c => r[c.key] > 0);
+  nonZero.forEach(c => {
+    const pct = (r[c.key] / total * 100).toFixed(1);
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td>
+        <div class="bd-item-name">
+          <span class="bd-dot" style="background:${c.color}"></span>
+          ${c.icon} ${c.label}
+          <div class="bd-bar-wrap" style="flex:1;min-width:60px">
+            <div class="bd-bar-fill" style="width:${pct}%;background:${c.color}"></div>
+          </div>
+        </div>
+      </td>
+      <td>${rp(r[c.key])}</td>
+      <td><span class="bd-pct-badge">${pct}%</span></td>`;
+    tbody.appendChild(tr);
+  });
+  const trTotal = document.createElement('tr');
+  trTotal.className = 'total-row';
+  trTotal.innerHTML = `<td>📊 Total modal produksi</td><td>${rp(r.totalModal)}</td><td><span class="bd-pct-badge" style="color:var(--blue)">100%</span></td>`;
+  tbody.appendChild(trTotal);
+}
+
+// ─── CHART ────────────────────────────────────────────────────────────────────
+function updateChart() {
+  const r = lastResult;
+  const nonZero = COMPONENTS.filter(c => r[c.key] > 0);
+  const total = r.totalModal || 1;
+
+  const legend = document.getElementById('chartLegend');
+  legend.innerHTML = '';
+  nonZero.forEach(c => {
+    const pct = (r[c.key] / total * 100).toFixed(1);
+    const row = document.createElement('div');
+    row.className = 'legend-row';
+    row.innerHTML = `<span class="legend-dot" style="background:${c.color}"></span>
+      <span class="legend-label">${c.icon} ${c.label}</span>
+      <span class="legend-val">${rp(r[c.key])}</span>
+      <span class="legend-pct">${pct}%</span>`;
+    legend.appendChild(row);
+  });
+
+  if (pieChartInst) pieChartInst.destroy();
+  const ctx = document.getElementById('pieChart').getContext('2d');
+  pieChartInst = new Chart(ctx, {
+    type: 'doughnut',
+    data: {
+      labels: nonZero.map(c => c.label),
+      datasets: [{
+        data: nonZero.map(c => r[c.key]),
+        backgroundColor: nonZero.map(c => c.color),
+        borderColor: '#161821',
+        borderWidth: 3,
+        hoverOffset: 10
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: true,
+      cutout: '65%',
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          callbacks: {
+            label: ctx => ` ${rp(ctx.raw)} (${(ctx.raw/total*100).toFixed(1)}%)`
+          },
+          backgroundColor: '#1e2030',
+          borderColor: 'rgba(255,255,255,0.1)',
+          borderWidth: 1,
+          titleColor: '#e8eaf0',
+          bodyColor: '#8b8fa8',
+          padding: 10
+        }
+      }
+    }
+  });
+}
+
+// ─── QUOTATION ────────────────────────────────────────────────────────────────
+function updateQuotation() {
+  const r = lastResult;
+  const box = document.getElementById('quotBox');
+  if (r.totalModal === 0) {
+    box.innerHTML = `<div class="empty-state"><div class="empty-icon">📄</div><div class="empty-title">Isi form untuk generate quotation</div><div class="empty-sub">Masukkan data dari Bambu Studio dan biaya default.</div></div>`;
+    return;
+  }
+  const now = new Date().toLocaleDateString('id-ID', {day:'numeric',month:'long',year:'numeric'});
+  box.innerHTML = `
+    <div class="quot-paper">
+      <div class="quot-header">
+        <div class="quot-header-title">Quotation Estimasi Harga — 3D Print</div>
+        <div class="quot-header-sub">Disiapkan oleh: 3D Print Cost Calculator • ${now}</div>
+      </div>
+      <div class="quot-body">
+        <div class="quot-row"><span class="quot-key">Nama project</span><span class="quot-val">${r.projectName || '—'}</span></div>
+        <div class="quot-row"><span class="quot-key">Customer</span><span class="quot-val">${r.customerName || '—'}</span></div>
+        <div class="quot-row"><span class="quot-key">Jumlah item</span><span class="quot-val">${r.qty} pcs</span></div>
+        <div class="quot-row"><span class="quot-key">Estimasi waktu print</span><span class="quot-val">${fmtHours(r.effectiveHours)}</span></div>
+        <div class="quot-row"><span class="quot-key">Total filament</span><span class="quot-val">${r.filTotal > 0 ? r.filTotal.toFixed(2) + ' g' : '—'}</span></div>
+        ${r.notes ? `<div class="quot-row"><span class="quot-key">Catatan</span><span class="quot-val" style="color:var(--text2)">${r.notes}</span></div>` : ''}
+        <div class="quot-divider"></div>
+        <div class="quot-row"><span class="quot-key">Biaya produksi</span><span class="quot-val">${rp(r.subtotal)}</span></div>
+        <div class="quot-row"><span class="quot-key">Biaya risiko gagal (${r.riskPct}%)</span><span class="quot-val">${rp(r.cRisk)}</span></div>
+        <div class="quot-row"><span class="quot-key">Total modal produksi</span><span class="quot-val">${rp(r.totalModal)}</span></div>
+        <div class="quot-row"><span class="quot-key">Margin keuntungan (${r.marginPct}%)</span><span class="quot-val">${rp(r.margin)}</span></div>
+        <div class="quot-divider"></div>
+        <div class="quot-row total"><span class="quot-key">Harga jual disarankan</span><span class="quot-val">${rp(r.hargaJual)}</span></div>
+        <div class="quot-row total"><span class="quot-key">Harga per item</span><span class="quot-val">${rp(r.hargaPerItem)}</span></div>
+        <div class="quot-note">* Harga di atas adalah estimasi dan dapat berubah tergantung revisi model, kualitas print, material yang digunakan, proses finishing, dan faktor teknis lainnya. Harga final akan dikonfirmasi setelah review file 3D dan approval dari customer. Berlaku untuk 1x order produksi tanpa revisi model.</div>
+      </div>
+    </div>`;
+}
+
+// ─── UI HELPERS ───────────────────────────────────────────────────────────────
+function toggleSection(id) {
+  sectionOpen[id] = !sectionOpen[id];
+  const body = document.getElementById('body-' + id);
+  const chev = document.getElementById('chev-' + id);
+  body.classList.toggle('hidden', !sectionOpen[id]);
+  chev.classList.toggle('open', sectionOpen[id]);
+}
+
+function switchTab(tab) {
+  document.querySelectorAll('.r-tab').forEach((el, i) => {
+    const tabs = ['summary','breakdown','chart','quotation','formula'];
+    el.classList.toggle('active', tabs[i] === tab);
+  });
+  document.querySelectorAll('.r-pane').forEach(p => p.classList.remove('active'));
+  document.getElementById('tab-' + tab).classList.add('active');
+}
+
+function showToast(msg, ico = '✓', duration = 2800) {
+  document.getElementById('toastMsg').textContent = msg;
+  document.getElementById('toastIco').textContent = ico;
+  const t = document.getElementById('toast');
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), duration);
+}
+
+// ─── COPY QUOTATION ──────────────────────────────────────────────────────────
+function copyQuotation() {
+  const r = lastResult;
+  if (!r || r.totalModal === 0) { showToast('Hitung dulu sebelum menyalin', '⚠️'); return; }
+  const now = new Date().toLocaleDateString('id-ID', {day:'numeric',month:'long',year:'numeric'});
+  const txt = [
+    '=================================',
+    'QUOTATION ESTIMASI HARGA — 3D PRINT',
+    '=================================',
+    'Tanggal          : ' + now,
+    'Nama project     : ' + (r.projectName || '-'),
+    'Customer         : ' + (r.customerName || '-'),
+    'Jumlah item      : ' + r.qty + ' pcs',
+    'Waktu print      : ' + fmtHours(r.effectiveHours),
+    'Total filament   : ' + (r.filTotal > 0 ? r.filTotal.toFixed(2) + ' g' : '-'),
+    r.notes ? 'Catatan          : ' + r.notes : '',
+    '---------------------------------',
+    'Biaya produksi   : ' + rp(r.subtotal),
+    'Biaya risiko     : ' + rp(r.cRisk) + ' (' + r.riskPct + '%)',
+    'Total modal      : ' + rp(r.totalModal),
+    'Margin           : ' + rp(r.margin) + ' (' + r.marginPct + '%)',
+    '---------------------------------',
+    'HARGA JUAL       : ' + rp(r.hargaJual),
+    'HARGA PER ITEM   : ' + rp(r.hargaPerItem),
+    '=================================',
+    '* Estimasi. Dapat berubah sesuai revisi model, material, dan finishing.',
+  ].filter(Boolean).join('\n');
+  navigator.clipboard.writeText(txt).then(() => showToast('Quotation berhasil disalin!', '✓')).catch(() => showToast('Gagal menyalin', '✗'));
+}
+
+// ─── DOWNLOAD ─────────────────────────────────────────────────────────────────
+function downloadHTML() {
+  const r = lastResult;
+  if (!r || r.totalModal === 0) { showToast('Hitung dulu sebelum mengunduh', '⚠️'); return; }
+  const now = new Date().toLocaleDateString('id-ID', {day:'numeric',month:'long',year:'numeric'});
+  const comps = COMPONENTS.filter(c => r[c.key] > 0).map(c =>
+    `<tr><td style="padding:8px 0;border-bottom:1px solid #eee;color:#555">${c.icon} ${c.label}</td><td style="padding:8px 0;border-bottom:1px solid #eee;text-align:right;font-weight:600">Rp ${Math.round(r[c.key]).toLocaleString('id-ID')}</td><td style="padding:8px 0;border-bottom:1px solid #eee;text-align:right;color:#999">${(r[c.key]/r.totalModal*100).toFixed(1)}%</td></tr>`
+  ).join('');
+  const html = `<!DOCTYPE html>
+<html lang="id"><head><meta charset="UTF-8"><title>Quotation ${r.projectName || '3D Print'}</title>
+<style>body{font-family:Arial,sans-serif;max-width:680px;margin:40px auto;padding:0 20px;color:#1a1a2e}
+.header{background:linear-gradient(135deg,#1a3a6b,#2563eb);color:white;padding:24px 28px;border-radius:12px;margin-bottom:24px}
+h1{font-size:22px;margin:0 0 4px}h2{font-size:13px;font-weight:normal;color:rgba(255,255,255,0.7);margin:0}
+.summary{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:20px}
+.card{background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:14px 16px}
+.card.blue{background:#eff6ff;border-color:#93c5fd}.card.green{background:#f0fdf4;border-color:#86efac}
+.cl{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:#64748b;margin-bottom:4px}
+.cv{font-size:18px;font-weight:700;color:#1e293b}.card.blue .cv{color:#1d4ed8}.card.green .cv{color:#15803d}
+table{width:100%;border-collapse:collapse;font-size:13px}th{text-align:left;padding:0 0 8px;border-bottom:1px solid #e2e8f0;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:#94a3b8}th:not(:first-child){text-align:right}
+.note{font-size:11px;color:#94a3b8;border-top:1px solid #e2e8f0;margin-top:16px;padding-top:14px;line-height:1.6}
+@media print{body{margin:20px}.no-print{display:none}}
+</style></head>
+<body>
+<div class="header"><h1>Quotation Estimasi Harga — 3D Print</h1><h2>${now} • 3D Print Cost Calculator</h2></div>
+<div class="summary">
+<div class="card blue"><div class="cl">💰 Total modal</div><div class="cv">Rp ${Math.round(r.totalModal).toLocaleString('id-ID')}</div></div>
+<div class="card green"><div class="cl">🏷️ Harga jual</div><div class="cv">Rp ${Math.round(r.hargaJual).toLocaleString('id-ID')}</div></div>
+<div class="card"><div class="cl">📦 Harga per item</div><div class="cv">Rp ${Math.round(r.hargaPerItem).toLocaleString('id-ID')}</div></div>
+<div class="card"><div class="cl">📈 Profit estimasi</div><div class="cv">Rp ${Math.round(r.profit).toLocaleString('id-ID')}</div></div>
+</div>
+<table><thead><tr><th>Keterangan</th><th>Nilai</th></tr></thead><tbody>
+<tr><td style="padding:8px 0;border-bottom:1px solid #eee;color:#555">Nama project</td><td style="padding:8px 0;border-bottom:1px solid #eee;text-align:right;font-weight:600">${r.projectName||'-'}</td></tr>
+<tr><td style="padding:8px 0;border-bottom:1px solid #eee;color:#555">Customer</td><td style="padding:8px 0;border-bottom:1px solid #eee;text-align:right;font-weight:600">${r.customerName||'-'}</td></tr>
+<tr><td style="padding:8px 0;border-bottom:1px solid #eee;color:#555">Jumlah item</td><td style="padding:8px 0;border-bottom:1px solid #eee;text-align:right;font-weight:600">${r.qty} pcs</td></tr>
+<tr><td style="padding:8px 0;border-bottom:1px solid #eee;color:#555">Waktu print</td><td style="padding:8px 0;border-bottom:1px solid #eee;text-align:right;font-weight:600">${fmtHours(r.effectiveHours)}</td></tr>
+<tr><td style="padding:8px 0;border-bottom:1px solid #eee;color:#555">Total filament</td><td style="padding:8px 0;border-bottom:1px solid #eee;text-align:right;font-weight:600">${r.filTotal > 0 ? r.filTotal.toFixed(2) + ' g' : '-'}</td></tr>
+</tbody></table>
+<h3 style="margin:20px 0 12px;font-size:14px">Rincian biaya</h3>
+<table><thead><tr><th>Komponen</th><th>Jumlah</th><th>%</th></tr></thead><tbody>
+${comps}
+<tr><td style="padding:10px 0;font-weight:700">Total modal produksi</td><td style="padding:10px 0;text-align:right;font-weight:700">Rp ${Math.round(r.totalModal).toLocaleString('id-ID')}</td><td style="padding:10px 0;text-align:right;font-weight:700">100%</td></tr>
+</tbody></table>
+<div class="note">* Harga di atas adalah estimasi dan dapat berubah tergantung revisi model, kualitas print, material, dan finishing. Harga final dikonfirmasi setelah review file dan approval customer.</div>
+</body></html>`;
+  const a = document.createElement('a');
+  a.href = 'data:text/html;charset=utf-8,' + encodeURIComponent(html);
+  a.download = 'quotation-' + (r.projectName||'3dprint').replace(/\s+/g,'-').toLowerCase() + '.html';
+  a.click();
+  showToast('File quotation berhasil diunduh!', '✓');
+}
+
+// ─── RESET ────────────────────────────────────────────────────────────────────
+function resetAll() {
+  const textInputs = ['projectName','customerName','notes','filModel','filPurge','filTower','filTotal','bambuCost','timePrepare','timeTimelapse','timeModel','timeTotal'];
+  textInputs.forEach(id => { const el = document.getElementById(id); if(el) el.value = ''; });
+  const defaults = {qty:1,filamentPriceKg:150000,electricRate:1500,printerWatt:200,depreciationPerHr:5000,maintenancePerHr:2000,rentPerHr:1000,operatorPerHr:5000,packagingCost:5000,finishingCost:0,miscCost:0,riskPct:10,marginPct:30};
+  Object.entries(defaults).forEach(([k,v]) => { const el = document.getElementById(k); if(el) el.value = v; });
+  document.getElementById('useBambuCost').checked = false;
+  document.getElementById('timeParsed').style.display = 'none';
+  lastResult = null;
+  calc();
+  showToast('Form direset ke nilai default', '↺');
+}
+
+// ─── PRESETS ──────────────────────────────────────────────────────────────────
+function savePreset() {
+  const keys = ['filamentPriceKg','electricRate','printerWatt','depreciationPerHr','maintenancePerHr','rentPerHr','operatorPerHr','packagingCost','riskPct','marginPct'];
+  const preset = {};
+  keys.forEach(k => { preset[k] = document.getElementById(k).value; });
+  try {
+    localStorage.setItem('3dprint_calc_preset', JSON.stringify(preset));
+    showToast('Preset disimpan di browser', '💾');
+  } catch(e) { showToast('Gagal menyimpan preset', '✗'); }
+}
+function loadPreset() {
+  try {
+    const saved = localStorage.getItem('3dprint_calc_preset');
+    if (!saved) { showToast('Belum ada preset tersimpan', '⚠️'); return; }
+    const p = JSON.parse(saved);
+    Object.entries(p).forEach(([k,v]) => { const el = document.getElementById(k); if(el) el.value = v; });
+    calc();
+    showToast('Preset berhasil dimuat', '📂');
+  } catch(e) { showToast('Gagal memuat preset', '✗'); }
+}
+function loadPresetPLA() {
+  document.getElementById('filamentPriceKg').value = 150000;
+  document.getElementById('printerWatt').value = 220;
+  document.getElementById('depreciationPerHr').value = 5000;
+  document.getElementById('maintenancePerHr').value = 1500;
+  document.getElementById('riskPct').value = 8;
+  document.getElementById('marginPct').value = 35;
+  calc(); showToast('Preset PLA Bambu dimuat', '🧵');
+}
+function loadPresetPETG() {
+  document.getElementById('filamentPriceKg').value = 220000;
+  document.getElementById('printerWatt').value = 240;
+  document.getElementById('depreciationPerHr').value = 6000;
+  document.getElementById('maintenancePerHr').value = 2000;
+  document.getElementById('riskPct').value = 12;
+  document.getElementById('marginPct').value = 40;
+  calc(); showToast('Preset PETG dimuat', '🧵');
+}
+function loadPresetABS() {
+  document.getElementById('filamentPriceKg').value = 190000;
+  document.getElementById('printerWatt').value = 280;
+  document.getElementById('depreciationPerHr').value = 7000;
+  document.getElementById('maintenancePerHr').value = 2500;
+  document.getElementById('riskPct').value = 15;
+  document.getElementById('marginPct').value = 45;
+  calc(); showToast('Preset ABS/ASA dimuat', '🧵');
+}
+
+// ─── INIT ─────────────────────────────────────────────────────────────────────
+calc();
+</script>
+</body>
+</html>
