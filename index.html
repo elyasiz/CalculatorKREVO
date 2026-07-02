@@ -617,10 +617,12 @@ firebase.initializeApp({
   projectId: "krevo-calc",
   storageBucket: "krevo-calc.firebasestorage.app",
   messagingSenderId: "963337078223",
-  appId: "1:963337078223:web:7c3e183d4664317e67beba"
+  appId: "1:963337078223:web:7c3e183d4664317e67beba",
+  measurementId: "G-PQ4E7SRXEH"
 });
 const db = firebase.firestore();
 const histCol = db.collection('history');
+db.enablePersistence({ synchronizeTabs: true }).catch(() => {});
 
 // ─── STATE ───────────────────────────────────────────────────────────────────
 let pieChartInst = null;
@@ -1267,19 +1269,31 @@ async function clearAllHistory() {
 
 // ─── INIT ─────────────────────────────────────────────────────────────────────
 calc();
-histCol.orderBy('savedAt', 'desc').onSnapshot(
-  snap => {
-    historyCache = snap.docs.map(d => d.data());
-    histLoaded = true;
-    updateHistCount();
-    if (document.getElementById('page-history').style.display !== 'none') renderHistory();
-  },
-  err => {
-    console.error('Firestore error:', err);
-    histLoaded = true;
-    document.getElementById('histList').innerHTML = `<div class="empty-state"><div class="empty-icon">⚠️</div><div class="empty-title">Gagal terhubung ke database</div><div class="empty-sub">${err.message || err.code || 'Cek koneksi internet atau izin Firestore.'} <br><br><button class="btn btn-blue" onclick="location.reload()" style="margin-top:8px">🔄 Coba Lagi</button></div></div>`;
-  }
-);
+function applySnapshot(snap) {
+  historyCache = snap.docs.map(d => d.data());
+  historyCache.sort((a, b) => (b.savedAt || '').localeCompare(a.savedAt || ''));
+  histLoaded = true;
+  updateHistCount();
+  if (document.getElementById('page-history').style.display !== 'none') renderHistory();
+}
+
+function onFirestoreError(err) {
+  console.error('Firestore error:', err);
+  histLoaded = true;
+  const msg = err.code === 'permission-denied'
+    ? 'Akses ditolak. Periksa Firestore Security Rules di Firebase Console.'
+    : (err.message || err.code || 'Cek koneksi internet.');
+  document.getElementById('histList').innerHTML =
+    `<div class="empty-state"><div class="empty-icon">⚠️</div><div class="empty-title">Gagal terhubung ke database</div><div class="empty-sub">${msg}<br><br><button class="btn btn-blue" onclick="location.reload()" style="margin-top:8px">🔄 Coba Lagi</button></div></div>`;
+}
+
+// Load awal via get() supaya data langsung muncul
+histCol.orderBy('savedAt', 'desc').get()
+  .then(applySnapshot)
+  .catch(onFirestoreError);
+
+// Real-time listener untuk sync antar device
+histCol.orderBy('savedAt', 'desc').onSnapshot(applySnapshot, onFirestoreError);
 </script>
 </body>
 </html>
