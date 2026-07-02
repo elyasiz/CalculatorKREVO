@@ -125,8 +125,9 @@ textarea { resize: vertical; min-height: 56px; line-height: 1.5; }
 
 /* SAVE HISTORY BAR */
 .save-hist-bar { background: linear-gradient(135deg,rgba(37,99,235,.07),rgba(37,99,235,.02)); border: 1px solid var(--blue-border); border-radius: var(--radius); padding: 11px 14px; display: flex; align-items: center; gap: 10px; margin-bottom: 14px; }
-.save-hist-bar .info { flex: 1; font-size: 11px; color: var(--text2); }
-.save-hist-bar .info b { color: var(--blue); display: block; font-size: 12px; margin-bottom: 2px; }
+.save-hist-bar .info { flex: 1; min-width: 0; font-size: 11px; color: var(--text2); }
+.save-hist-bar .info b { color: var(--blue); display: block; font-size: 12px; margin-bottom: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.save-hist-bar .btn { flex-shrink: 0; }
 
 /* BREAKDOWN TABLE */
 .bd-table { width: 100%; border-collapse: collapse; }
