@@ -1004,26 +1004,40 @@ function updateHistCount() {
   el.textContent = n; el.style.display = n > 0 ? 'inline-flex' : 'none';
 }
 
+function cleanData(obj) {
+  const out = {};
+  for (const [k, v] of Object.entries(obj)) {
+    if (v === undefined) continue;
+    if (typeof v === 'number' && (isNaN(v) || !isFinite(v))) { out[k] = 0; continue; }
+    out[k] = v;
+  }
+  return out;
+}
+
 async function saveToHistory() {
   if (!lastResult || lastResult.totalModal === 0) { showToast('Tidak ada data untuk disimpan', '⚠️'); return; }
   try {
     if (currentHistoryId) {
       const exists = historyCache.find(h => h.id === currentHistoryId);
       if (exists) {
-        await histCol.doc(currentHistoryId).set({ ...exists, ...lastResult, updatedAt: new Date().toISOString() });
+        await histCol.doc(currentHistoryId).set(cleanData({ ...exists, ...lastResult, updatedAt: new Date().toISOString() }));
         showToast('History berhasil diupdate', '✓');
       } else {
         currentHistoryId = null; await saveToHistory(); return;
       }
     } else {
       const id = Date.now().toString();
-      const entry = { id, savedAt: new Date().toISOString(), ...lastResult };
-      await histCol.doc(id).set(entry);
+      await histCol.doc(id).set(cleanData({ id, savedAt: new Date().toISOString(), ...lastResult }));
       currentHistoryId = id;
       showToast('Disimpan ke History!', '💾');
     }
     updateSaveHistBar();
-  } catch(e) { showToast('Gagal menyimpan ke database', '✗'); }
+  } catch(e) {
+    const code = e.code || '';
+    if (code === 'permission-denied') showToast('Gagal: izin ditolak — update Firestore Rules', '✗', 5000);
+    else showToast('Gagal simpan: ' + (e.message || code), '✗', 5000);
+    console.error('saveToHistory error:', e);
+  }
 }
 
 async function deleteHistoryEntry(id) {
