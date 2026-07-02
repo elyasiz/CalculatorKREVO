@@ -752,6 +752,13 @@ function updateSaveHistBar() {
   bar.style.display = 'flex';
   const proj = r.projectName || 'Tanpa Nama';
   if (currentHistoryId) {
+    const saved = getHistEntry(currentHistoryId);
+    // Auto-reset ke entry baru kalau nama project berbeda
+    if (saved && r.projectName && saved.projectName !== r.projectName) {
+      currentHistoryId = null;
+    }
+  }
+  if (currentHistoryId) {
     document.getElementById('saveHistTitle').textContent = 'Update history "' + proj + '"?';
     document.getElementById('saveHistBtnLabel').textContent = 'Update History';
   } else {
@@ -993,6 +1000,7 @@ function saveToHistory() {
   } else {
     const entry = { id: Date.now().toString(), savedAt: new Date().toISOString(), ...lastResult };
     arr.unshift(entry);
+    currentHistoryId = entry.id;
     showToast('Disimpan ke History!', '💾');
   }
   saveHistoryData(arr);
