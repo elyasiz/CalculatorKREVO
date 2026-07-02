@@ -1274,7 +1274,11 @@ histCol.orderBy('savedAt', 'desc').onSnapshot(
     updateHistCount();
     if (document.getElementById('page-history').style.display !== 'none') renderHistory();
   },
-  err => console.error('Firestore error:', err)
+  err => {
+    console.error('Firestore error:', err);
+    histLoaded = true;
+    document.getElementById('histList').innerHTML = `<div class="empty-state"><div class="empty-icon">⚠️</div><div class="empty-title">Gagal terhubung ke database</div><div class="empty-sub">${err.message || err.code || 'Cek koneksi internet atau izin Firestore.'} <br><br><button class="btn btn-blue" onclick="location.reload()" style="margin-top:8px">🔄 Coba Lagi</button></div></div>`;
+  }
 );
 </script>
 </body>
