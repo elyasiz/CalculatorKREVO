@@ -5,6 +5,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Krevo Calculator — Bambu Studio Edition</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
 <style>
 :root {
   --bg: #f9fafb; --bg2: #ffffff; --bg3: #f3f4f6; --bg4: #e5e7eb;
@@ -608,13 +610,26 @@ textarea { resize: vertical; min-height: 56px; line-height: 1.5; }
 <div class="toast" id="toast"><span class="toast-ico" id="toastIco">✓</span><span id="toastMsg">Berhasil!</span></div>
 
 <script>
+// ─── FIREBASE ────────────────────────────────────────────────────────────────
+firebase.initializeApp({
+  apiKey: "AIzaSyAtDFc0FEsMZwF1EmYL1XGlrsS68AqiolY",
+  authDomain: "krevo-calc.firebaseapp.com",
+  projectId: "krevo-calc",
+  storageBucket: "krevo-calc.firebasestorage.app",
+  messagingSenderId: "963337078223",
+  appId: "1:963337078223:web:7c3e183d4664317e67beba"
+});
+const db = firebase.firestore();
+const histCol = db.collection('history');
+
 // ─── STATE ───────────────────────────────────────────────────────────────────
 let pieChartInst = null;
 const sectionOpen = {s1:true, s2:true, s3:true};
 let lastResult = null;
 let currentHistoryId = null;
 let confirmCallback = null;
-const HISTORY_KEY = '3dprint_history';
+let historyCache = [];
+let histLoaded = false;
 
 // ─── TIME PARSER ─────────────────────────────────────────────────────────────
 function parseTimeToHours(str) {
@@ -977,59 +992,60 @@ function loadPresetPETG() { const p={filamentPriceKg:220000,printerWatt:240,depr
 function loadPresetABS()  { const p={filamentPriceKg:190000,printerWatt:280,depreciationPerHr:7000,maintenancePerHr:2500,riskPct:15,marginPct:45}; Object.entries(p).forEach(([k,v])=>document.getElementById(k).value=v); calc(); showToast('Preset ABS/ASA dimuat','🧵'); }
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// HISTORY MANAGEMENT
+// HISTORY MANAGEMENT (Firebase Firestore — shared across all devices)
 // ═══════════════════════════════════════════════════════════════════════════════
-function loadHistory() {
-  try { return JSON.parse(localStorage.getItem(HISTORY_KEY) || '[]'); } catch(e) { return []; }
-}
-function saveHistoryData(arr) {
-  try { localStorage.setItem(HISTORY_KEY, JSON.stringify(arr)); updateHistCount(); } catch(e) { showToast('Gagal menyimpan history', '✗'); }
-}
+function loadHistory() { return historyCache; }
+
 function updateHistCount() {
-  const arr = loadHistory(), n = arr.length;
+  const n = historyCache.length;
   const el = document.getElementById('histCount');
   el.textContent = n; el.style.display = n > 0 ? 'inline-flex' : 'none';
 }
 
-function saveToHistory() {
+async function saveToHistory() {
   if (!lastResult || lastResult.totalModal === 0) { showToast('Tidak ada data untuk disimpan', '⚠️'); return; }
-  const arr = loadHistory();
-  if (currentHistoryId) {
-    const idx = arr.findIndex(h => h.id === currentHistoryId);
-    if (idx >= 0) { arr[idx] = { ...arr[idx], ...lastResult, updatedAt: new Date().toISOString() }; showToast('History berhasil diupdate', '✓'); }
-    else { currentHistoryId = null; saveToHistory(); return; }
-  } else {
-    const entry = { id: Date.now().toString(), savedAt: new Date().toISOString(), ...lastResult };
-    arr.unshift(entry);
-    currentHistoryId = entry.id;
-    showToast('Disimpan ke History!', '💾');
-  }
-  saveHistoryData(arr);
-  updateSaveHistBar();
+  try {
+    if (currentHistoryId) {
+      const exists = historyCache.find(h => h.id === currentHistoryId);
+      if (exists) {
+        await histCol.doc(currentHistoryId).set({ ...exists, ...lastResult, updatedAt: new Date().toISOString() });
+        showToast('History berhasil diupdate', '✓');
+      } else {
+        currentHistoryId = null; await saveToHistory(); return;
+      }
+    } else {
+      const id = Date.now().toString();
+      const entry = { id, savedAt: new Date().toISOString(), ...lastResult };
+      await histCol.doc(id).set(entry);
+      currentHistoryId = id;
+      showToast('Disimpan ke History!', '💾');
+    }
+    updateSaveHistBar();
+  } catch(e) { showToast('Gagal menyimpan ke database', '✗'); }
 }
 
-function deleteHistoryEntry(id) {
-  const arr = loadHistory().filter(h => h.id !== id);
-  saveHistoryData(arr);
-  if (currentHistoryId === id) currentHistoryId = null;
-  renderHistory();
-  showToast('History dihapus', '🗑');
+async function deleteHistoryEntry(id) {
+  try {
+    await histCol.doc(id).delete();
+    if (currentHistoryId === id) { currentHistoryId = null; updateSaveHistBar(); }
+    showToast('History dihapus', '🗑');
+  } catch(e) { showToast('Gagal menghapus history', '✗'); }
 }
 
-function duplicateHistory(id) {
-  const arr = loadHistory();
-  const src = arr.find(h => h.id === id);
+async function duplicateHistory(id) {
+  const src = historyCache.find(h => h.id === id);
   if (!src) return;
-  const copy = { ...src, id: Date.now().toString(), savedAt: new Date().toISOString(), projectName: (src.projectName || 'Project') + ' (Duplikat)' };
-  arr.unshift(copy);
-  saveHistoryData(arr);
-  renderHistory();
-  showToast('Project berhasil diduplikat', '📋');
+  try {
+    const newId = Date.now().toString();
+    const copy = { ...src, id: newId, savedAt: new Date().toISOString(), projectName: (src.projectName || 'Project') + ' (Duplikat)' };
+    delete copy.updatedAt;
+    await histCol.doc(newId).set(copy);
+    showToast('Project berhasil diduplikat', '📋');
+  } catch(e) { showToast('Gagal menduplikat', '✗'); }
 }
 
 function loadHistoryToForm(id) {
-  const arr = loadHistory();
-  const h = arr.find(e => e.id === id);
+  const h = historyCache.find(e => e.id === id);
   if (!h) return;
   const fields = {projectName:'',customerName:'',notes:'',qty:1,filModel:'',filPurge:'',filTower:'',filTotal:'',bambuCost:'',timePrepare:'',timeTimelapse:'',timeModel:'',timeTotal:'',filamentPriceKg:150000,electricRate:1500,printerWatt:200,depreciationPerHr:5000,maintenancePerHr:2000,rentPerHr:1000,operatorPerHr:5000,packagingCost:5000,finishingCost:0,miscCost:0,riskPct:10,marginPct:30};
   Object.keys(fields).forEach(k => {
@@ -1047,7 +1063,12 @@ function loadHistoryToForm(id) {
 
 // ─── RENDER HISTORY ───────────────────────────────────────────────────────────
 function renderHistory() {
-  const all = loadHistory();
+  if (!histLoaded) {
+    document.getElementById('histStats').innerHTML = '';
+    document.getElementById('histList').innerHTML = `<div class="empty-state"><div class="empty-icon">🔄</div><div class="empty-title">Memuat data...</div><div class="empty-sub">Mengambil history dari database.</div></div>`;
+    return;
+  }
+  const all = historyCache;
   let arr = [...all];
   const q = (document.getElementById('histSearch').value || '').toLowerCase().trim();
   const sort = document.getElementById('histSort').value;
@@ -1121,13 +1142,13 @@ function buildHistCard(h) {
 }
 
 function escHtml(str) { return (str||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
-function getHistEntry(id) { return loadHistory().find(h => h.id === id); }
+function getHistEntry(id) { return historyCache.find(h => h.id === id); }
 
 async function confirmDelete(id) {
   const h = getHistEntry(id);
   const proj = h ? (h.projectName || 'Tanpa Nama') : 'project ini';
   const ok = await showConfirm('Hapus History', `Hapus history "${proj}"? Tindakan ini tidak bisa dibatalkan.`, 'Ya, Hapus', '🗑');
-  if (ok) deleteHistoryEntry(id);
+  if (ok) await deleteHistoryEntry(id);
 }
 
 // ─── HISTORY DETAIL MODAL ─────────────────────────────────────────────────────
@@ -1213,15 +1234,16 @@ function exportHistoryCSV() {
 function importHistoryJSON(input) {
   const file = input.files[0]; if (!file) return;
   const reader = new FileReader();
-  reader.onload = e => {
+  reader.onload = async e => {
     try {
       const imported = JSON.parse(e.target.result);
       if (!Array.isArray(imported)) throw new Error('Format tidak valid');
-      const existing = loadHistory();
-      const existingIds = new Set(existing.map(h => h.id));
+      const existingIds = new Set(historyCache.map(h => h.id));
       const newItems = imported.filter(h => !existingIds.has(h.id));
-      saveHistoryData([...existing, ...newItems]);
-      renderHistory();
+      if (!newItems.length) { showToast('Tidak ada data baru untuk diimport', '⚠️'); return; }
+      const batch = db.batch();
+      newItems.forEach(item => batch.set(histCol.doc(item.id || Date.now().toString()), item));
+      await batch.commit();
       showToast(`Import berhasil: ${newItems.length} project baru ditambahkan`, '✓', 3500);
     } catch(err) { showToast('Gagal import: format file tidak valid', '✗'); }
     input.value = '';
@@ -1230,20 +1252,30 @@ function importHistoryJSON(input) {
 }
 
 async function clearAllHistory() {
-  const arr = loadHistory();
-  if (!arr.length) { showToast('History sudah kosong', '⚠️'); return; }
-  const ok = await showConfirm('Hapus Semua History', `Hapus semua ${arr.length} history? Tindakan ini tidak bisa dibatalkan.`, 'Ya, Hapus Semua', '⚠️');
+  if (!historyCache.length) { showToast('History sudah kosong', '⚠️'); return; }
+  const ok = await showConfirm('Hapus Semua History', `Hapus semua ${historyCache.length} history? Tindakan ini tidak bisa dibatalkan.`, 'Ya, Hapus Semua', '⚠️');
   if (ok) {
-    saveHistoryData([]);
-    if (currentHistoryId) { currentHistoryId = null; updateSaveHistBar(); }
-    renderHistory();
-    showToast('Semua history dihapus', '🗑');
+    try {
+      const batch = db.batch();
+      historyCache.forEach(h => batch.delete(histCol.doc(h.id)));
+      await batch.commit();
+      if (currentHistoryId) { currentHistoryId = null; updateSaveHistBar(); }
+      showToast('Semua history dihapus', '🗑');
+    } catch(e) { showToast('Gagal menghapus semua history', '✗'); }
   }
 }
 
 // ─── INIT ─────────────────────────────────────────────────────────────────────
 calc();
-updateHistCount();
+histCol.orderBy('savedAt', 'desc').onSnapshot(
+  snap => {
+    historyCache = snap.docs.map(d => d.data());
+    histLoaded = true;
+    updateHistCount();
+    if (document.getElementById('page-history').style.display !== 'none') renderHistory();
+  },
+  err => console.error('Firestore error:', err)
+);
 </script>
 </body>
 </html>
